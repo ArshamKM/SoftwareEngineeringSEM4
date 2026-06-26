@@ -1,591 +1,840 @@
-# PRC2 Study Book v2 — Full Course + Exam
+# PRC2 — Let Me Actually Explain This To You
 
-This version folds in **all 11 weekly pages** from the course site on top of your friend's exam review. Structure per topic:
-- **🧠 Concept** — what it is and *why*.
-- **⚙️ Mechanics** — rules, syntax, the course details.
-- **🎯 Exam layer** — the True/False traps from the review.
+This isn't a reference doc you skim. Read it like someone's talking to you. Each topic has a real explanation first, then the exam traps at the end. After each topic there are 2-3 quick questions — answer them mentally before moving on. If you can answer them, you're done with that topic. If you can't, re-read it.
 
-New full sections your friend's notes skipped are marked **★ GAP-FILL** (state machines, security, annotations, wildcards/PECS, IEEE-754 floats, i18n bundles).
-
-> **Contradictions in the review notes — settled:**
-> 1. **Closing a `Connection` closes its Statements/ResultSets → TRUE** (three pages agree + course confirms try-with-resources closes everything).
-> 2. **`LocalDateTime` has no offset/zone → TRUE.** Read the exam's wording carefully.
-> 3. Log-level ladder bottom rung is **ALL** (logs everything), not "OFF".
+> **Three things settled up front because the notebook contradicts itself:**
+> 1. Closing a `Connection` closes its Statements and ResultSets → **TRUE**
+> 2. `LocalDateTime` has no offset/zone → **TRUE**
+> 3. The bottom of the logging level ladder is **ALL** (logs everything), not OFF
 
 ---
 
-# 1. Testing fundamentals & TDD
+# 1. Testing & TDD
 
-### 🧠 Concept
-Tests are an automated "English teacher" that checks your code so your own brain — which is biased to believe its own code works — doesn't have to. **Test-Driven Development** flips the order: write a *failing* test first (**Red**), make it pass with minimal code (**Green**), then **Refactor**. Writing the test first stops you marrying your implementation, and forces design decisions early: *if it's hard to test, you didn't build it right.*
+**Why does any of this exist?** Your brain is terrible at finding bugs in code you wrote yourself. You're biased — you think it works because you built it. Tests are an automated second opinion that doesn't care about your feelings.
 
-### ⚙️ Mechanics
-- **Arrange–Act–Assert (AAA / triple-A):** set up the SUT + dependencies (Arrange), call one method on the SUT (Act), check the result/new state (Assert).
-- **SUT** = System Under Test (the protagonist). **DOC** = Dependent-On Component (collaborators).
-- **F.I.R.S.T. principles:** Fast, Independent, Repeatable, Self-validating, Timely.
-- **Where to start a class (TDD order):** constructor → getters → `toString()` → setters (only if needed) → business methods (easiest first) → refinements.
-- **Test selection:** width-first (test all parts shallowly) vs depth-first (one part fully), and easy-first vs hard-first — heuristics, not rules.
-- **equals/hashCode recipe:** equal objects must have equal hashCode (reverse not required). To fully cover a generated `equals`, test against: `this`, `null`, a different type, an equal object, and one object differing in *each* field.
-- Golden rule: **never add a member without a test proving you need it.** And **CODE THAT ISN'T WRITTEN CAN'T BE WRONG.**
+**TDD flips the normal order.** Instead of writing code then testing it, you write the test first. The cycle is:
+- **Red** — write a test that fails (it has to fail, the code doesn't exist yet)
+- **Green** — write the minimum code to make it pass
+- **Refactor** — clean up, knowing the test will catch if you break something
 
-### 🎯 Exam layer
-- TDD = test **before** code (Red→Green→Refactor).
-- A unit test is **isolated**, **fast**, no external dependencies.
-- Equal objects → equal hashCode (TRUE); equal hashCode → equal objects (**FALSE**).
+Why write the test first? Because it forces you to think about what the code *should do* before you get lost in *how* to write it. If you can't write a test for something, you probably don't understand what it should do yet.
+
+**A unit test has one job** — test one small, isolated piece of code (usually one method or class). No database. No network. No external systems. Those make tests slow and unpredictable. A unit test should run in milliseconds and always give the same result.
+
+**AAA is how every test is structured:**
+- **Arrange** — set up the thing you're testing and its dependencies
+- **Act** — call the one method you're testing
+- **Assert** — check the result
+
+The golden rule: *code that isn't written can't be wrong.* Don't add a method just because it seems useful — add it when a failing test demands it.
+
+One trap on equals/hashCode: if two objects are equal, they must have the same hashCode. The reverse is NOT true — two objects can have the same hashCode without being equal. Think of it like postcodes: two people in the same street have the same postcode, but the postcode alone doesn't identify the person.
+
+**Quick check:**
+1. In TDD, do you write the test before or after the code?
+2. What makes a test a "unit" test — what does it NOT depend on?
+3. If `a.equals(b)` is true, what must also be true about their hashCodes?
 
 ---
 
-# 2. JUnit 5 & AssertJ — assertions, parameterized, exceptions
+# 2. JUnit 5 & AssertJ
 
-### 🧠 Concept
-JUnit runs tests; AssertJ provides a fluent, readable assertion API entered through `assertThat(...)`. A test with no real assertion is worthless.
+**JUnit just finds and runs your tests.** Put `@Test` on a method and JUnit will run it. That's the core of it. If an assertion inside throws an exception, the test fails. If nothing throws, it passes.
 
-### ⚙️ Mechanics
-**AssertJ basics:** `assertThat(actual).isEqualTo(expected)`, `.isTrue()/.isFalse()` (booleans), `.contains(...)`, `.hasSize(...)`, `.extracting(...)`, `.containsExactlyInAnyOrder(...)`. Add `.as("description")` for better failure messages. Add a cheap `.isNotNull()` first to self-protect against NPEs. `isEqualTo` = equals; `isSameAs` = reference identity (`==`).
+**AssertJ makes assertions readable.** The pattern is always `assertThat(what you got).someCheck()`:
 
-**Exception testing — three cases:**
-1. Don't care about a checked exception → declare `throws` on the test method.
-2. Expect **no** exception → `assertThatCode(code).doesNotThrowAnyException();`
-3. Expect an exception → `assertThatThrownBy(code).isExactlyInstanceOf(X.class).hasMessageContaining(...)`.
-   - JUnit's own form: `assertThrows(X.class, () -> ...)`.
-   - The lambda type is `ThrowingCallable` (a functional interface).
+```java
+assertThat(result).isEqualTo(5);           // equals check
+assertThat(name).contains("hello");         // string contains
+assertThat(list).hasSize(3);               // collection size
+assertThat(value).isNotNull();             // null check
+assertThat(flag).isTrue();                 // boolean
+```
 
-**Soft assertions:** collect *all* failures, report at the end — needed when several related values must all be checked. `SoftAssertions.assertSoftly(softly -> { ... })` (or `assertAll()`). **Forget to close/assertAll → nothing is verified.**
+`isEqualTo` uses `.equals()`. `isSameAs` checks reference identity (same object in memory, like `==`). Those are different things.
 
-**Assumptions:** skip a test when a precondition fails (`assumeTrue(...)`, `assumeThat(...)`). A skipped-by-assumption test shows as *skipped*, like `@Disabled`. Put an assumption in `@BeforeAll` to disable a whole class.
+**Parameterized tests exist so you don't copy-paste.** Instead of writing the same test 10 times with different inputs, you write it once and feed it data:
 
-**Parameterized tests:** one method, many data rows.
-- `@ParameterizedTest` + a source: `@ValueSource`, `@CsvSource` (inline rows, single-quote strings containing commas), `@CsvFileSource` (external CSV in `src/test/resources`), `@MethodSource` (a static method returning the data/stream).
-- The method **takes arguments** matching the row; JUnit auto-converts strings to primitives/`String`/`LocalDate` (ISO-8601).
-- General advice: **one logical assert per test** (a failure stops the rest of the method).
+```java
+@ParameterizedTest
+@ValueSource(ints = {2, 4, 6, 8})
+void isEven(int n) {
+    assertThat(n % 2).isEqualTo(0);
+}
+```
 
-### 🎯 Exam layer
-| Statement | Answer |
-|---|---|
-| A parameterized test can be `private` | **FALSE** |
-| It can run with no data source | **FALSE** (needs ≥1, e.g. `@ValueSource`) |
-| It must take arguments | **TRUE** |
-| Data can come from a static method (`@MethodSource`) | **TRUE** |
-| `@Test` + `@ParameterizedTest` on one method | **FALSE** |
-| Skip `assertAll()` with soft assertions | **FALSE** — nothing verified |
-| Bare try-catch in a test (no `fail()`) | bad practice — use `assertThrows`/`assertThatThrownBy` |
+JUnit runs this 4 times. Data sources you need to know: `@ValueSource` (simple values), `@CsvSource` (multiple columns, inline), `@MethodSource` (data comes from a static method in the class).
+
+Three rules for parameterized tests that the exam loves:
+- Must use `@ParameterizedTest`, NOT `@Test` — you can't combine them
+- Must have at least one data source annotation — it can't run with no data
+- Must NOT be private — JUnit needs to call it
+
+**Soft assertions solve a specific problem.** Normal assertions stop at the first failure. If you have 5 checks and the first fails, you never see the other 4. Soft assertions collect all failures and report them at the end. But — and this is the trap — **you must call `softly.assertAll()` at the end**. Forget it and literally nothing is verified. The test passes even if everything is wrong.
+
+**Testing that an exception IS thrown:**
+
+```java
+// Clean way:
+assertThrows(ArithmeticException.class, () -> divide(10, 0));
+
+// Old way — only OK if you add fail():
+try {
+    divide(10, 0);
+    fail("Expected ArithmeticException"); // ← this line is crucial
+} catch (ArithmeticException e) {
+    assertEquals("/ by zero", e.getMessage());
+}
+```
+
+Why is the bare try-catch without `fail()` bad? If `divide(10, 0)` somehow doesn't throw, execution just skips past the catch block and the test passes. You think you tested something but you tested nothing. The `fail()` call is the safety net that catches this.
+
+Golden rule: **never write a bare try-catch in a test.** Use `assertThrows`, or include `fail()`.
+
+**Assumptions** let you skip a test when a precondition isn't met. `assumeTrue(someCondition)` — if the condition is false, the test is skipped (not failed). Shows up as skipped in the results, like `@Disabled`.
+
+**Quick check:**
+1. What's wrong with: `@Test @ParameterizedTest void myTest(int x) {}`
+2. You write soft assertions but forget `assertAll()`. The test passes. Is that good?
+3. Why does a bare try-catch without `fail()` give you a false sense of security?
 
 ---
 
 # 3. Testability & Mocking
 
-### 🧠 Concept
-**Testability is a non-functional requirement.** Untestable code is unmaintainable. Three properties: **Controllability** (drive it into a state), **Observability** (see what it did), **Smallness** (small unit). The key design rule: **program against interfaces, not concrete classes**, and **never let business code create its own dependencies** — *inject* them. That's **Dependency Injection**: pass services via constructor/setter instead of `new`-ing them inside. This keeps the SUT testable and observable.
+**Testability is a design quality, not a testing quality.** If your code is hard to test, it's not a testing problem — it's a design problem. Hard-to-test code is usually hard-to-change code too.
 
-### ⚙️ Mechanics
-**Test doubles** replace DOCs (never the SUT):
-- **Stub** — holds pre-set data / canned answers.
-- **Mock** — fake whose calls you **verify** (`verify(mock).method(...)`); train with `when(...).thenReturn(...)`.
-- **Spy** — wraps a **real** object; observes calls, overrides some behaviour, keeps the rest real.
+Three things make code testable:
+- **Controllability** — can you put the system into the exact state you need to test? If everything depends on a live database, you can't.
+- **Observability** — can you see what the code did? If a method returns void and writes to a log file, how do you check it worked?
+- **Smallness** — is the thing you're testing small enough to reason about? A 500-line class with 20 responsibilities is nearly impossible to test well.
 
-**Mockito details:**
-- `mock(Printer.class)`, `@Mock` field, `verify(...)`, argument matchers `anyString()`, `any()`, `eq()`.
-- **ArgumentCaptor** captures what was passed to a mock so you can assert on it.
-- Mockito **warns about unnecessary stubbings** — every trained method should be used; an unused one is a smell.
-- **Real-class config beats mocking:** e.g. stub input with `new Scanner("12\n13\n")`; redirect output with a custom `PrintStream`. **Don't mock entity classes** (Student/Product) — they're just data; use the real thing or a record.
+**The big design rule: inject dependencies, don't create them.** If a class creates its own database connection with `new Connection(...)` inside a method, you can never test it without a real database. But if the connection is passed in from outside (through the constructor or a setter), you can pass a fake one in your tests. That's **dependency injection** — passing dependencies in from outside instead of creating them inside.
 
-**End-to-end testing:** **REST-assured** (given-when-then DSL) tests the whole REST API; **Testcontainers** spins up a real DB in Docker for isolated, reproducible tests. E2E tests are slow/flaky → prefer many isolated unit tests, which also pressure your design toward loose coupling.
+**Test doubles are the fakes you pass in.** There are three types and the exam really wants you to know the difference:
 
-### 🎯 Exam layer
-- **Mock the SUT and still test its logic → FALSE.** You'd be testing the mock; none of the SUT's code runs.
-- Stub = data/canned returns · Mock = verify interactions · Spy = real object partly overridden.
-- Dependency injection = providing dependencies from outside (constructor/setter), not creating them inside.
+- **Stub** — returns fake data when called. You just need it to return something so your code doesn't crash. You don't care if it was called or how many times.
+- **Mock** — a fake that you *verify* was used correctly. You check "was this method called? With what arguments?" Mockito's `verify()` is for mocks.
+- **Spy** — wraps a real object. It behaves normally by default, but you can track its calls or override specific methods. The real code runs for everything you haven't overridden.
+
+The biggest exam trap: **never mock the SUT (the thing you're testing)**. You mock the *dependencies* of the SUT. If you mock the SUT itself, you're not testing any real code — you're testing the mock. It's like testing whether a stunt double can act — it tells you nothing about the real actor.
+
+**Mockito in one paragraph:** `mock(SomeClass.class)` creates a mock. `when(mock.method()).thenReturn(value)` trains it. `verify(mock).method()` checks it was called. Argument matchers like `any()`, `anyString()`, `eq("specific")` let you be flexible or precise about what arguments you're checking for.
+
+**Quick check:**
+1. What's the difference between a stub and a mock?
+2. You mock the class you're trying to test. What's wrong with this?
+3. What does "dependency injection" mean in one sentence?
 
 ---
 
 # 4. Mutation Testing (PIT)
 
-### 🧠 Concept
-Tests check code; **mutation testing checks the tests.** PIT introduces small **mutations** (`+`→`-`, `>`→`<`, `true`→`false`) and reruns your tests. Good tests should fail on the broken code.
+**Here's the problem:** you can write 100 tests and still have terrible tests. Tests that always pass, even on broken code, are worthless. But how do you know if your tests are any good?
 
-### ⚙️ Mechanics / 🎯 Exam layer
-- **Mutant** = code with one small change. **Killed** = a test failed (good). **Survived** = all tests passed despite the bug (your tests are too weak). **Mutation score** = % killed (higher = better).
-- Purpose = **assess test quality**, not code correctness.
+**Mutation testing answers this.** PIT takes your code, makes a tiny change to it (a *mutation* — flips `+` to `-`, changes `>` to `<`, changes `true` to `false`), and then runs your tests against the broken code. If your tests catch the change, the mutant is **killed** — good. If your tests all still pass despite the code being wrong, the mutant **survived** — your tests have a blind spot.
+
+The **mutation score** is the percentage of mutants killed. Higher is better. A 90% mutation score means 90% of the small bugs PIT introduced were caught by your tests.
+
+The purpose isn't to test your code's correctness — it's to **assess the quality of your tests**. That distinction matters for the exam.
+
+**Quick check:**
+1. A mutant survived. What does that tell you?
+2. What's the mutation score and why does higher = better?
+3. PIT assesses the quality of your \_\_\_\_\_, not your \_\_\_\_\_.
 
 ---
 
 # 5. Enums
 
-### 🧠 Concept
-A fixed, closed set of named constants that are also objects. Each constant is a single immutable instance created at class-load time — so the set of states can never grow.
+**An enum is a fixed, closed set of constants that are also real objects.** Think of the days of the week — there are exactly 7, you'll never add an 8th, and each one is a specific named thing. That's what enums are for.
 
-### ⚙️ Mechanics
-- Implicitly `final` (can't extend); each constant **is an instance**; can have fields, **private** constructors, static methods; can **implement interfaces** and declare **abstract methods** (each constant then implements them).
-- Enum's own superclass: `Enum<E extends Enum<E>>` (a self-type — see Generics). Enums and records are **leaf classes** — not extendable.
+Because each constant is an actual object (an instance of the enum type), enums can do a lot more than you might expect:
 
-### 🎯 Exam layer
-| Statement | Answer |
-|---|---|
-| An enum is always final | **TRUE** |
-| Enum constructors can be public | **FALSE** (always private) |
-| Enums can implement interfaces | **TRUE** |
-| Enums can have abstract methods | **TRUE** (each constant implements) |
-| Enums can extend a class | **FALSE** |
+```java
+enum Planet {
+    MERCURY(3.303e+23, 2.4397e6),
+    VENUS(4.869e+24, 6.0518e6);
+
+    private final double mass;
+    Planet(double mass, double radius) {  // constructor — always private
+        this.mass = mass;
+    }
+}
+```
+
+Things enums CAN do: have fields, have private constructors, declare static methods, implement interfaces, declare abstract methods (but then each constant must implement them).
+
+Things enums CANNOT do: be extended (they're implicitly `final`), extend a class (they already extend `java.lang.Enum` implicitly).
+
+That last point is a classic trap: **enums cannot extend a class**. They can implement interfaces — that's different.
+
+**Quick check:**
+1. Can an enum implement an interface?
+2. Can an enum extend another class?
+3. Enum constructors must always be \_\_\_\_\_.
 
 ---
 
 # 6. Generics
 
-### 🧠 Concept
-Generics give **compile-time type safety** without casts. They are mainly a **compiler** feature: after checking, the compiler **erases** the type info, so at runtime `List<String>` and `List<Integer>` are both raw `List`. Erasure (introduced Java 5, alongside autoboxing) explains every "gotcha": anything needing the type at runtime is impossible.
+**Generics exist because Java is strongly typed but you want reusable code.** Without generics, a list that holds anything has to hold `Object`, and you'd need casts everywhere and could accidentally add the wrong type. With generics, `List<String>` tells the compiler "this only holds Strings" and it enforces that at compile time.
 
-### ⚙️ Mechanics
 ```java
-class Box<T> { T content; }        // generic class
-<T> T firstOf(List<T> xs) { ... }  // generic method: <T> before return type
+class Box<T> {        // T is a placeholder for any type
+    T content;
+}
+Box<String> b = new Box<>();  // T becomes String
+Box<Integer> c = new Box<>(); // T becomes Integer
 ```
-- ❌ `new T()`, ❌ `new T[10]`, ❌ `Box<int>` (use `Box<Integer>`), ❌ `static T field;`. ✅ generic interfaces.
-- **Generics are invariant:** `List<Circle>` is **NOT** a `List<Shape>`, even though `Circle` is a `Shape`.
-- **Raw type** (`ArrayList al = new ArrayList()`) compiles with an **unchecked warning**; casting through a raw alias can cause a runtime **`ClassCastException`**.
 
-**★ Wildcards & bounds — PECS (gap-fill, not in your notes):**
-- `? extends T` — **upper bound**, **covariant**. A *Producer* you read T's out of. You can **get** (as T) but **can't add** (except null). `List<? extends Shape>` accepts `List<Circle>`.
-- `? super T` — **lower bound**, **contravariant**. A *Consumer* you put T's into. You can **add** T, but reads come out as `Object`. `List<? super Circle>` accepts `List<Shape>`.
-- Mnemonic **PECS: Producer Extends, Consumer Super.**
-- `?` (unbounded) — "of any type", e.g. `Class<?>`.
+**The catch: type erasure.** Generics are a compile-time feature only. After the compiler checks everything, it removes the type info. At runtime, `List<String>` and `List<Integer>` are both just `List` — the `<String>` and `<Integer>` are gone. This is called erasure, and it explains every "gotcha" in generics:
 
-**Type tokens & runtime types:**
-- A `Class<T>` passed around is a **type token**; `Collections.checkedList(list, Student.class)` guards insertions, throwing `ClassCastException` at the offending insert.
-- `clazz.isAssignableFrom(other.getClass())` = runtime check "would a cast work?" (then `clazz.cast(obj)`). Contrast `instanceof`, which is a **compile-time** check needing a statically known type.
-- **Self-types:** `Enum<E extends Enum<E>>`, `String implements Comparable<String>`, and fluent APIs (`duck.fly().swim().walk()`) use a `self()` returning the leaf type. Heavily used in AssertJ.
+- `new T()` — **ILLEGAL**. At runtime the JVM doesn't know what T is.
+- `new T[10]` — **ILLEGAL**. Same reason.
+- `Box<int>` — **ILLEGAL**. Primitives aren't allowed; use `Box<Integer>` instead.
+- `static T value` — **ILLEGAL**. Static members are shared across all instances of `Box`, so "which T?" has no answer.
+- Raw type (`ArrayList al = new ArrayList()`) — **compiles with a warning**. Not illegal, just unsafe.
 
-### 🎯 Exam layer
-| Statement | Answer |
-|---|---|
-| `new T()` / `new T[10]` allowed | **FALSE** (erasure / no generic arrays) |
-| `Box<int>` valid | **FALSE** (use wrapper) |
-| Static field can use class type parameter | **FALSE** |
-| Generic interfaces exist | **TRUE** |
-| Raw types fail to compile | **FALSE** (compile with warning) |
-| Type available at runtime | **FALSE** (erasure) |
-| `List<Circle>` is a `List<Shape>` | **FALSE** (invariant) |
-| `? extends` = Producer/read; `? super` = Consumer/write | **PECS** |
+**Generics are invariant** — this trips people up constantly. Even though `Circle` is a `Shape`, `List<Circle>` is NOT a `List<Shape>`. They're completely different types. You can't pass a `List<Circle>` where a `List<Shape>` is expected.
+
+**Wildcards fix this (PECS is the memory trick):**
+- `? extends Shape` — you can READ from this list (get Shapes out), but you can't ADD to it. Think of it as a **Producer** of Shapes. **P**roducer **E**xtends.
+- `? super Circle` — you can ADD Circles to this list, but reading gives you `Object`. Think of it as a **Consumer** of Circles. **C**onsumer **S**uper.
+- **PECS: Producer Extends, Consumer Super.**
+
+**Quick check:**
+1. Why is `new T()` illegal in a generic class?
+2. `Circle extends Shape`. Is `List<Circle>` a subtype of `List<Shape>`?
+3. You want to read elements out of a list. Should you use `? extends T` or `? super T`?
 
 ---
 
 # 7. Lambdas, Functional Interfaces & Streams
 
-### 🧠 Concept
-A **lambda** implements a **functional interface** (exactly one abstract method), letting you pass behaviour like data. Java 8 added this without breaking old code by allowing **default** and **static** methods on interfaces (e.g. Java 8 `Comparator` has 1 abstract + many default/static methods). A **Stream** is a conveyor belt: a source, lazy **intermediate** ops, and one eager **terminal** op.
+**A lambda is just a short way of writing a method that you pass around.** It works because of functional interfaces — an interface with exactly one abstract method. The lambda provides the body of that one method.
 
-### ⚙️ Mechanics
-**Functional-interface SHAPE** (`java.util.function`), notation `input → output`:
-- `Supplier<T>`: `() → T` · `Consumer<T>`: `T → {}` · `Function<T,R>`: `T → R` · `BiFunction<T,U,R>`: `(T,U) → R` · `Predicate<T>`: `T → boolean`.
-- Primitive specializations (e.g. `ToIntFunction`, `LongConsumer`) exist for efficiency.
-- Lambdas have **no useful `toString()`**. Checked exceptions in lambdas are awkward → wrap (e.g. `UncheckedIOException`).
+```java
+// These do the same thing:
+Comparator<String> c1 = new Comparator<String>() {
+    public int compare(String a, String b) { return a.compareTo(b); }
+};
+Comparator<String> c2 = (a, b) -> a.compareTo(b);  // lambda version
+```
 
-**Method references** (`::`), 4 kinds: static `Class::m`, bound instance `obj::m`, unbound instance `Type::m`, constructor `Class::new` (also `this::m`). You can't omit the `::` or left side.
+A functional interface has **exactly one abstract method**. It CAN have any number of `default` and `static` methods — those don't count. The `@FunctionalInterface` annotation is optional — it just tells the compiler to enforce the rule. Without it, you can still use an interface as a functional interface as long as it has exactly one abstract method.
 
-**Stream pipeline = source → intermediate(s) → terminal:**
-- Intermediate (lazy, return Stream): `filter, map, mapToInt, sorted, distinct, limit, peek`.
-- Terminal (eager): `collect, forEach, reduce, count, sum, anyMatch, findFirst`.
-- Exactly **one** terminal, at the end. SQL-like: `people.stream().filter(...).mapToInt(...).sum()`.
+**Common functional interfaces from `java.util.function`:**
+- `Supplier<T>` — takes nothing, returns T: `() -> "hello"`
+- `Consumer<T>` — takes T, returns nothing: `s -> System.out.println(s)`
+- `Function<T,R>` — takes T, returns R: `s -> s.length()`
+- `Predicate<T>` — takes T, returns boolean: `s -> s.isEmpty()`
 
-**Optional:** like a stream of 0-or-1; many terminals return it. `map` on an Optional transforms its content; chain `.map(...).map(...)` to avoid null checks. Prefer returning `Optional<T>` or an empty collection over `null`.
+**Streams are a pipeline for processing data.** Three parts: a source, some intermediate operations, a terminal operation.
 
-### 🎯 Exam layer
-| Statement | Answer |
-|---|---|
-| Functional interface = exactly one abstract method | **TRUE** |
-| Can also have default/static methods | **TRUE** |
-| `@FunctionalInterface` required | **FALSE** (optional) |
-| Intermediate ops run immediately | **FALSE** (lazy) |
-| Terminal ops at the end | **TRUE** |
-| Two terminal ops in one pipeline | **FALSE** (only one) |
+```java
+list.stream()                    // source
+    .filter(s -> s.length() > 3) // intermediate (lazy)
+    .map(String::toUpperCase)     // intermediate (lazy)
+    .collect(toList());           // terminal (triggers everything)
+```
+
+The key thing about streams: **intermediate operations are lazy**. Nothing actually runs until you hit a terminal operation. You can chain 10 `filter` and `map` calls and nothing has happened yet. The terminal operation is what pulls data through the pipeline and produces a result.
+
+**Intermediate ops** (lazy, return a Stream): `filter`, `map`, `sorted`, `distinct`, `limit`, `peek`.
+**Terminal ops** (eager, return a result): `collect`, `forEach`, `reduce`, `count`, `findFirst`, `anyMatch`.
+
+A pipeline has **exactly one terminal operation**, always at the end. You can't have two terminal operations on the same stream — after a terminal op the stream is consumed and gone.
+
+**Quick check:**
+1. `@FunctionalInterface` is required for an interface to work as a functional interface. True or false?
+2. You add 5 `filter()` calls to a stream. When do they actually run?
+3. Can a stream pipeline have two terminal operations?
 
 ---
 
 # 8. Exceptions
 
-### 🧠 Concept
-An exception disrupts normal flow. The whole hierarchy descends from **`Throwable`**. `Error` = serious JVM/system problems (unchecked, don't handle). `Exception` = your program's problems; **`RuntimeException`** under it = programming bugs (unchecked). **Checked** (everything else) = the compiler forces handle-or-declare, for recoverable external issues.
+**Exceptions exist because sometimes things go wrong that aren't your fault.** A file doesn't exist. A network connection drops. A database is down. Java gives you a formal way to handle these situations instead of returning weird null values or magic numbers.
 
-### ⚙️ Mechanics
-- **Checked:** `IOException`, `SQLException`, `ClassNotFoundException` — must `try/catch` or `throws`.
-- **Unchecked:** `NullPointerException`, `IndexOutOfBoundsException`, `IllegalArgumentException`, `ArithmeticException`.
-- `throw` = throw an object; `throws` = declare a method may throw.
-- **`finally`** runs under all circumstances (cleanup) — almost always (not on `System.exit()` / JVM crash).
-- **Compiler rule:** a `try` needs **at least one of** catch (many allowed) **or** finally. `try{}` alone is illegal; `try(resource){}` is legal (implicit finally).
-- **Custom exceptions** extend `Exception` (or `RuntimeException`); pass a message to `super(...)`.
-- **Chaining:** an exception can hold a `cause` (`Throwable`); walk it with `getCause()` in a loop.
+**The hierarchy matters:**
+```
+Throwable
+├── Error              (JVM problems — OutOfMemoryError, StackOverflowError)
+│                       Don't catch these. You can't recover.
+└── Exception
+    ├── RuntimeException   (unchecked — NullPointer, ArrayIndexOutOfBounds)
+    │                       Programming mistakes. Fix the code, don't catch it.
+    └── Everything else    (checked — IOException, SQLException)
+                            External problems. Compiler forces you to handle.
+```
 
-**catch/finally flow:**
-| Situation | catch | finally | code after finally |
+**Checked vs unchecked is about who's responsible:**
+- **Checked** exceptions are things that can go wrong in the outside world that you should anticipate — file not found, network error, SQL failure. The compiler forces you to either catch them or declare them with `throws`. Examples: `IOException`, `SQLException`, `ClassNotFoundException`.
+- **Unchecked** exceptions are programming bugs — you tried to use a null reference, accessed an array out of bounds, divided by zero. The right fix is to fix the code, not wrap it in a try-catch. Examples: `NullPointerException`, `ArrayIndexOutOfBoundsException`, `ArithmeticException`.
+
+**`throw` vs `throws` — completely different things:**
+- `throw` is an action: `throw new IOException("file not found");` — actually throws it right now.
+- `throws` is a declaration: `void readFile() throws IOException` — warns callers that this method might throw.
+
+You can have both in the same method. That's perfectly legal.
+
+**`finally` always runs** — its whole point is cleanup that must happen regardless of what went wrong. The only exceptions (ironically) are `System.exit()` being called, or the JVM crashing. So the exam answer is "almost always."
+
+**A try block needs at least one of:** a catch block OR a finally block. `try` alone with nothing after it is a compile error. `try-with-resources` has an implicit finally, so it works without an explicit catch.
+
+**The catch/finally flow — memorise the middle row:**
+
+| What happens | catch runs? | finally runs? | code after? |
 |---|---|---|---|
-| Thrown & caught | ✅ | ✅ | ✅ |
-| Thrown, not caught | ❌ | ✅ | ❌ |
+| Exception thrown & caught | ✅ | ✅ | ✅ |
+| Exception thrown, NOT caught | ❌ | ✅ | ❌ |
 | No exception | ❌ | ✅ | ✅ |
 
-### 🎯 Exam layer
-| Statement | Answer |
-|---|---|
-| All exceptions must be handled | **FALSE** (only checked) |
-| Can declare `throws` for an unchecked exception | **TRUE** |
-| `finally` always runs | **ALMOST** (not `System.exit`/crash) |
-| A `try` must have a `catch` | **FALSE** (`try…finally` ok) |
-| `catch (Throwable)` | **TRUE** but bad (catches `Error`s) |
-| Two catches for same type / `IOException \| Exception` | **compile error** |
-| Throw any object | **FALSE** (only `Throwable`/subclass) |
+The middle row is the sneaky one. Exception not caught → finally still runs → but code after the try-catch doesn't.
+
+**Multi-catch traps:**
+- Two catches for the same type → compile error
+- `catch (IOException | Exception e)` → compile error, because `Exception` already covers `IOException` — you're catching the same thing twice
+
+**Quick check:**
+1. `NullPointerException` — checked or unchecked?
+2. Exception is thrown but not caught. Does `finally` run?
+3. `catch (IOException | Exception e)` — does this compile?
 
 ---
 
-# 9. Immutability (+ BigInteger/BigDecimal)
+# 9. Immutability + BigInteger/BigDecimal
 
-### 🧠 Concept
-An immutable object's fields never change after construction; "modifying" returns a **new** object. Safe to share/cache/use as keys. `String` is the classic case.
+**Immutable means the object's state can never change after it's created.** You can't modify it — you can only create a new one. Strings are the classic Java example.
 
-### ⚙️ Mechanics
-- `s.concat("x")` returns a new String; `s` is unchanged unless you reassign `s = s.concat("x")`.
-- **BigInteger** (arbitrary-precision integer) and **BigDecimal** (arbitrary-precision decimal) are **immutable**. Use BigDecimal for money/science.
-- **Trap:** `new BigDecimal(0.1)` is **wrong** (inherits double's imprecision); `new BigDecimal("0.1")` (String) is **correct**.
+This trips people up constantly:
 
-### 🎯 Exam layer
-- `s.concat(...)` without reassign → unchanged.
-- BigInteger/BigDecimal immutable & arbitrary-precision; construct BigDecimal from a **String**.
+```java
+String s = "hello";
+s.concat("world");         // This creates a new String but THROWS IT AWAY
+System.out.println(s);     // Still prints: hello
 
----
+s = s.concat("world");     // NOW you're reassigning s to the new String
+System.out.println(s);     // Prints: hello world
+```
 
-# 10. Reflection & the `Object` class
+`s.concat("world")` doesn't change `s`. It returns a new String. If you don't assign it back, it's gone. `s` still points to "hello."
 
-### 🧠 Concept
-**Reflection** inspects/manipulates code at **runtime** — classes, fields, methods, constructors, annotations — even private members. It powers frameworks (JUnit, Mockito, ORMs). Costs: slower (security checks + indirection), **less type-safe**, breaks encapsulation.
+**BigInteger and BigDecimal** are immutable too, and they exist because `int`/`long` have size limits and `float`/`double` have rounding errors.
 
-### ⚙️ Mechanics
-**Get a `Class`** three ways: `obj.getClass()`, `Type.class`, `Class.forName("fully.qualified.Name")` (throws **ClassNotFoundException**).
-- **Constructors:** `clazz.getConstructor(String.class).newInstance("x")`.
-- **Methods:** `clazz.getMethod("getName").invoke(instance)`; static → `invoke(null)`; with params → `getMethod("m", String.class).invoke(null, "x")`.
-- **Fields:** `clazz.getDeclaredField("name")`; private → `field.setAccessible(true)` then `field.get(instance)`.
-- **Modifiers as bit flags:** `getModifiers()` returns an int; PUBLIC=1, PRIVATE=2, PROTECTED=4, STATIC=8, FINAL=16… check with `&`.
-- **Hierarchy:** `getSuperclass()`, `getInterfaces()`, `isInterface()`, `field.getType()`, `field.getDeclaringClass()`.
+- `BigInteger` — for integers too large for `long`. No decimal point. Immutable.
+- `BigDecimal` — for decimal numbers that need to be exact. Use for money — never use `double` for money.
 
-**`Object` class:** every class implicitly extends `java.lang.Object` (root). Inherited: `toString()`, `equals(Object)`, `hashCode()`, `getClass()`. `getClass()` returns the **runtime** type.
-**Correct Class references:** ✅ `Object.class`, `Class.forName("java.lang.Object")`, `new Object().getClass()` · ❌ `Object.getClass()` (instance method, not static).
+One trap: `new BigDecimal(0.1)` is WRONG — it inherits the floating-point imprecision of `0.1` as a `double`. Use `new BigDecimal("0.1")` (pass a String) to get the exact value.
 
-### 🎯 Exam layer
-- Every class implicitly extends `Object` → **TRUE**; `getClass()` = runtime type → **TRUE**; `Object.getClass()` → **FALSE**.
-- Reflection can read private fields (with `setAccessible(true)`) → **TRUE**.
-- `Class.forName` can throw **ClassNotFoundException**.
+**Quick check:**
+1. What does `s.concat("world")` return, and what happens to `s`?
+2. Which type would you use for a bank balance — `double` or `BigDecimal`?
+3. `new BigDecimal(0.1)` vs `new BigDecimal("0.1")` — which is correct and why?
 
 ---
 
-# 11. ★ Annotations (gap-fill)
+# 10. Reflection & the Object class
 
-### 🧠 Concept
-Annotations (Java 5) attach **metadata** to code elements without changing behaviour. Frameworks read them via reflection (e.g. JUnit finds `@Test`).
+**Reflection lets your code examine itself at runtime.** Normally you know everything at compile time — you call `dog.bark()` and the compiler checks that `Dog` has a `bark()` method. With reflection, you can discover and call methods dynamically at runtime, even if you didn't know they existed when you wrote the code.
 
-### ⚙️ Mechanics
-- Built-in: `@Override`, `@Deprecated`, `@SuppressWarnings`. Library: `@Test`, `@ParameterizedTest`.
-- Define with `@interface`. Parameters are method-like: `String name();`, `int year();`, `String[] x() default {};`. A single `value()` lets callers omit `value=`.
-- **`@Retention`**: `SOURCE` / `CLASS` / **`RUNTIME`** — only RUNTIME is readable by reflection.
-- **`@Target`** (ElementType): `TYPE`, `METHOD`, `FIELD`, `PARAMETER`, `PACKAGE`.
-- Read via reflection: `field.isAnnotationPresent(Hidden.class)`, `field.getAnnotation(Hidden.class).value()`, or loop `getAnnotations()` + `annotationType()`.
+This is how frameworks work. JUnit finds all your `@Test` methods without you telling it what they are — it uses reflection to scan the class. Mockito creates mock objects by inspecting the class structure at runtime.
 
-### 🎯 Exam layer
-- To read an annotation at runtime it must be `@Retention(RUNTIME)`.
-- `@Target` restricts where an annotation may be applied.
-- Frameworks like JUnit use reflection + annotations to find and run tests.
+**Every class in Java implicitly extends `Object`** — it's the root of the entire class hierarchy. Because of this, every object has these methods for free: `toString()`, `equals()`, `hashCode()`, and `getClass()`.
+
+`getClass()` is important for reflection — it returns the **runtime type** of the object as a `Class<?>`:
+
+```java
+Object obj = new String("hello");
+System.out.println(obj.getClass()); // prints: class java.lang.String
+```
+
+Even though `obj` is declared as `Object`, at runtime it's actually a `String`. `getClass()` tells you the real type.
+
+**Three ways to get a `Class` object:**
+- `obj.getClass()` — instance method, gives runtime type
+- `String.class` — compile-time literal
+- `Class.forName("java.lang.String")` — by name, can throw `ClassNotFoundException`
+
+**Exam trap:** `Object.getClass()` — this looks valid but it's **wrong**. `getClass()` is an instance method, not a static one. You can't call it on the class itself, only on an instance.
+
+✅ `Object.class` — valid (class literal)
+✅ `new Object().getClass()` — valid (instance method on an instance)
+❌ `Object.getClass()` — invalid (treating an instance method like a static one)
+
+**Risks of reflection:** it's slower than normal code, it can break encapsulation (you can access private fields with `setAccessible(true)`), and it bypasses compile-time type checking — meaning bugs that the compiler would have caught now only show up at runtime.
+
+**Quick check:**
+1. Every class in Java implicitly extends what?
+2. What does `getClass()` return?
+3. Is `Object.getClass()` valid? Why or why not?
 
 ---
 
-# 12. JPMS — Java Platform Module System
+# 11. Annotations
 
-### 🧠 Concept
-Introduced in Java 9 (project **JigSaw**). Adds a layer above packages for **strong encapsulation**: a module declares what it **requires** (reads) and **exports**, so a `public` class in a non-exported package is invisible outside. Dependencies are checked **at JVM startup** — missing requirement → JVM refuses to start (clear early failure vs classpath's late `ClassNotFoundException`).
+**Annotations are labels you attach to code that carry extra information.** They don't change what your code does on their own — they're metadata. The magic happens when something (usually a framework using reflection) reads those labels and acts on them.
 
-### ⚙️ Mechanics
-- `module-info.java` in the source root; **no `import`** inside it. `java.base` is required by default.
-- Keywords: `module`, `requires`, `requires transitive`, `exports`, `exports … to`, `opens`, `opens … to`, `open module` (whole module reflective), `uses`, `provides … with` (services / `ServiceLoader`), `to`.
-- `exports` = compile/runtime access to a package. `opens` = **reflective** access (frameworks); `opens` ≠ `exports`. `requires transitive` re-exposes a dependency to your consumers (public API only).
-- **Forbidden:** split packages (same package in two modules) and **cyclic** dependencies.
-- **Reflection + JPMS access** (gap-fill table):
+`@Test` on a method is just a label. JUnit then uses reflection to find all methods with that label and run them. Without reflection, the annotation does nothing.
 
-| Package | Normal public access | Reflective private access |
+**Built-in ones you know:** `@Override` (tells compiler you're overriding a method), `@Deprecated` (warns that something is old), `@SuppressWarnings`.
+
+**You can define your own:**
+
+```java
+@Retention(RetentionPolicy.RUNTIME)  // keep it at runtime so reflection can read it
+@Target(ElementType.FIELD)           // only allowed on fields
+public @interface Hidden {
+    String reason() default "not specified";
+}
+```
+
+**`@Retention` is critical.** Three options:
+- `SOURCE` — only in source code, gone after compilation
+- `CLASS` — in the bytecode but not at runtime
+- `RUNTIME` — stays at runtime, readable by reflection
+
+If you want a framework to read your annotation, it **must be `RUNTIME`**. If it's `SOURCE` or `CLASS`, reflection can't see it.
+
+**`@Target`** restricts where the annotation can be placed — on types, methods, fields, parameters, etc.
+
+**Quick check:**
+1. You create an annotation without `@Retention`. Can JUnit read it at runtime?
+2. What does `@Target(ElementType.METHOD)` do?
+3. Why don't annotations change behaviour on their own?
+
+---
+
+# 12. JPMS — the Module System
+
+**Before Java 9, any public class was visible to everything on the classpath.** Big projects became a mess — internal implementation classes were technically accessible to anyone. JPMS (Java Platform Module System) fixed this by adding a layer above packages.
+
+A **module** is a named group of packages with explicit rules about what it needs and what it shares. You define this in one file: `module-info.java`, placed in the source root.
+
+**The keywords — learn what each one does:**
+
+- `requires X` — "I need module X to compile and run." The JVM checks this at startup; if X is missing, it refuses to start immediately instead of failing later.
+- `requires transitive X` — same as requires, but I also pass X through to anyone who depends on me. They get X's **public API**, not private members.
+- `exports mypackage` — "Other modules can use the classes in this package." Without this, even public classes in this package are invisible to other modules.
+- `opens mypackage` — "Other modules can use reflection on this package." Needed for frameworks like JUnit or Spring that use reflection at runtime. Does NOT mean the same as exports.
+- `import` — **not allowed** in module-info.java at all.
+
+**The difference between exports and opens:**
+- `exports` = normal access (compile-time, calling methods)
+- `opens` = reflective access only (runtime, frameworks inspecting your code)
+- They are completely independent. `opens` does NOT automatically `exports`.
+
+**Syntax rules the exam tests:**
+- `requires` names a **module**: ✅ `requires java.sql` ❌ `requires com.myapp.api` (that's a package)
+- `exports` names a **package in your own module**: ✅ `exports com.myapp.api` ❌ `exports java.sql` (that's someone else's package)
+- Same rule for `opens`.
+- Modules are not classes — you can't extend them.
+- Split packages (same package in two modules) → **forbidden**.
+- Cyclic dependencies → **forbidden**.
+
+**The access table:**
+
+| Package is... | Normal access | Reflective access |
 |---|---|---|
-| encapsulated (not exported, not opened) | ✗ | ✗ |
-| only-exported | ✓ | ✗ (`setAccessible` fails) |
-| only-opens | ✗ | ✓ |
-| full (exported + opened) | ✓ | ✓ |
+| Not exported, not opened | ✗ | ✗ |
+| Only exported | ✓ | ✗ |
+| Only opened | ✗ | ✓ |
+| Exported AND opened | ✓ | ✓ |
 
-- **Testing:** unit tests need package-private/private access (**white box**), which JPMS would block; Maven *surefire* patches the test classes into the module (and uses `--add-opens`). **Black box** = test only the exported API, like a normal client.
-
-### 🎯 Exam layer
-| Statement | Answer |
-|---|---|
-| `requires com.myapp.api` (a package) | **FALSE** (requires names a **module**) |
-| `exports java.sql` (another module's pkg) | **FALSE** (exports names a pkg in *this* module) |
-| `opens` automatically exports | **FALSE** |
-| `requires transitive` gives private-member access | **FALSE** (public API only) |
-| `import` allowed in module-info | **FALSE** |
-| Split packages / cyclic deps allowed | **FALSE** |
+**Quick check:**
+1. `requires com.myapp.api` — what's wrong with this?
+2. Does `opens mypackage` also give normal (non-reflective) access to that package?
+3. `requires transitive` gives you access to private members of the transitive dependency. True or false?
 
 ---
 
-# 13. JDBC — database access
+# 13. JDBC
 
-### 🧠 Concept
-Standard API for relational DBs. The **API (`java.sql`) is vendor-neutral**; a **Driver** (vendor-specific) plugs in. The DB lives in the **persistence layer** of a layered architecture — SQL belongs nowhere else.
+**JDBC is Java's standard way to talk to a relational database.** The clever part is the split: the API (`java.sql`) is vendor-neutral — your code always looks the same. The Driver underneath is vendor-specific — swap MySQL for PostgreSQL by changing the driver, not your code.
 
-### ⚙️ Mechanics
-- Flow: `DataSource`/`DriverManager` → `Connection` → `Statement`/`PreparedStatement` → `ResultSet`. `Connection` is `AutoCloseable` → use try-with-resources.
-- **5 interfaces:** Connection, Statement/PreparedStatement/CallableStatement, ResultSet, ResultSetMetaData, DriverManager. **Vendor** = Oracle/MySQL/PostgreSQL.
-- **ResultSet:** cursor starts **before** the first row; `next()` advances; rows fetched **lazily**; columns **1-based** (by index or name). `getInt("bad")` → SQLException.
-- **PreparedStatement:** fixed SQL with `?` placeholders, set via `setObject(i, v)` (1-based), **compiled once / reused**, **prevents SQL injection**. `executeQuery()`→ResultSet, `executeUpdate()`→int. `returning *` to get back inserted rows/generated ids.
-- **Credentials** go in a `.properties` file (host/port/user/password/dbname/schema), loaded via `getResourceAsStream` — never hard-coded, never committed.
-- **Transactions:** all-or-nothing (`setAutoCommit(false)`, `commit()`, `rollback()`); locking → too coarse = slow, too fine = **deadlocks**.
-- **"Never evers":** no SQL outside persistence layer · no `postgres` superuser in the app · no hard-coded credentials · don't commit credential files · don't leak `SQLException` to the business layer (wrap in a `PersistenceException`).
+```
+Your Code
+    ↓
+JDBC API (java.sql) — always the same
+    ↓
+Driver (MySQL, PostgreSQL, Oracle…) — swap this to change databases
+    ↓
+Database
+```
 
-### 🎯 Exam layer
-**Connection/driver**
-| Statement | Answer |
-|---|---|
-| `getConnection()` uses JDBC URL to pick driver | **TRUE** |
-| `jdbc:mysql://…` works for PostgreSQL | **FALSE** (must match vendor) |
-| Always need `Class.forName(driver)` | **FALSE** (auto-loads) |
-| Multiple connections from one app | **TRUE** |
-| Closing Connection closes its Statements/ResultSets | **TRUE** |
-| Must still close them manually after | **FALSE** |
-| Not closing → DB memory leaks | **TRUE** |
-| try-with-resources closes in reverse order | **TRUE** |
+**5 interfaces you need to know:**
+1. **DriverManager** — opens connections using a JDBC URL
+2. **Connection** — one session with the database, AutoCloseable
+3. **Statement / PreparedStatement / CallableStatement** — sends SQL
+4. **ResultSet** — the rows returned by a SELECT
+5. **ResultSetMetaData** — info about the columns (names, types, count)
 
-**Statement vs PreparedStatement**
-| Statement | Answer |
-|---|---|
-| Pass dynamic SQL to a PreparedStatement | **FALSE** (SQL fixed, params change) |
-| Compiled once, reused | **TRUE** |
-| Immune to SQL injection | **TRUE** |
-| Reusable after closed | **FALSE** |
-| `executeQuery`→ResultSet, `executeUpdate`→int | **TRUE** |
+**The "Vendor"** just means the company that made the database software — Oracle, MySQL, PostgreSQL, etc.
 
-**ResultSet / MetaData**
-| Statement | Answer |
-|---|---|
-| Cursor starts at first row | **FALSE** (before it) |
-| `getString(0)` = first column | **FALSE** (1-based) |
-| `getInt("bad-col")` returns 0 | **FALSE** (SQLException) |
-| MetaData gives column count | **TRUE** |
-| `getColumnName(0)` | **FALSE** (≥1) |
-| Must know column names to use MetaData | **FALSE** |
+**PreparedStatement vs Statement** — this is a big deal in both security and the exam:
+
+Statement builds SQL by string concatenation — dangerous:
+```java
+stmt.execute("SELECT * FROM users WHERE name = '" + userInput + "'"); // vulnerable!
+```
+
+PreparedStatement has placeholders — safe:
+```java
+PreparedStatement ps = conn.prepareStatement("SELECT * FROM users WHERE name = ?");
+ps.setString(1, userInput);  // 1-based!
+ps.executeQuery();
+```
+
+PreparedStatement: SQL is **fixed** (only `?` parameters change), **compiled once then reused**, **immune to SQL injection**, **1-based** parameter indexes.
+
+**ResultSet — the cursor:** starts **before** the first row. You call `next()` to advance to the first row. Rows come lazily — not all loaded at once. Column indexes are **1-based** (not 0). You can access by name or index.
+
+```java
+while (rs.next()) {
+    String name = rs.getString(1);     // first column
+    String email = rs.getString("email"); // by name
+}
+```
+
+If you call `getInt("column_that_doesnt_exist")` → throws `SQLException`, doesn't return 0.
+
+**Closing cascade:** closing a Statement closes its ResultSet. Closing a Connection closes everything — all its Statements and ResultSets. Use try-with-resources and they close in reverse order automatically.
+
+**The rules that count as "never evers" in this course:**
+- No hard-coded credentials in code — use a `.properties` file
+- Never use the superuser (`postgres`) for the app — use a least-privilege role
+- Never let `SQLException` leak out of the persistence layer — wrap it
+
+**Quick check:**
+1. The ResultSet cursor starts at the first row. True or false?
+2. You call `rs.getString(0)`. What happens?
+3. You close the Connection. What happens to the open Statements and ResultSets?
 
 ---
 
 # 14. AutoCloseable & try-with-resources
 
-### 🧠 Concept
-Resources must be released or they leak. `AutoCloseable` + try-with-resources auto-calls `close()` at the end, **even on exception** — replacing the old finally-close dance.
+**The problem:** resources like database connections, files, and streams must be closed or they leak. Forgetting to close a connection keeps it open on the database server — if you do that thousands of times, the server runs out of connections.
 
-### ⚙️ Mechanics
-- `AutoCloseable` (java.lang); `close()` may throw. Multiple resources close in **reverse** order. Outside try-with-resources, **nothing** auto-closes.
-- A `try(resource){}` needs no explicit catch/finally (implicit finally).
+**The solution:** `AutoCloseable`. Any class implementing it can go in a try-with-resources block, and Java guarantees `close()` is called at the end — even if an exception is thrown. No finally block needed.
 
-### 🎯 Exam layer
-| Statement | Answer |
-|---|---|
-| `close()` runs even on exception | **TRUE** |
-| Reverse-order close | **TRUE** |
-| AutoCloseable auto-closes without try-with-resources | **FALSE** |
-| `ResultSet` is AutoCloseable | **TRUE** |
-| `ResultSetMetaData` is AutoCloseable | **FALSE** |
-| Must close `DatabaseMetaData` | **FALSE** |
+```java
+try (Connection conn = DriverManager.getConnection(url);
+     PreparedStatement ps = conn.prepareStatement(sql)) {
+    // use them
+}
+// both are closed automatically here, even if an exception occurred
+```
 
----
+Multiple resources close in **reverse order** — the last one opened closes first. So `ps` closes before `conn` in the example above.
 
-# 15. REST / HTTP
+**Critical trap:** an object implementing `AutoCloseable` does NOT close itself automatically. It only closes automatically when used in a try-with-resources block. If you just create it normally and forget to close it, it stays open.
 
-### 🧠 Concept
-REST fixes the inconsistent-URL problem of ad-hoc APIs with a **uniform interface**: resources are nouns identified by URIs, and **HTTP methods** express intent. **Stateless** by design — every request carries all needed info; the server keeps no session.
+**What's AutoCloseable and what isn't:**
+- `Connection` → AutoCloseable ✅
+- `Statement` → AutoCloseable ✅
+- `ResultSet` → AutoCloseable ✅
+- `ResultSetMetaData` → **NOT** AutoCloseable ❌
+- `DatabaseMetaData` → **NOT** AutoCloseable, you don't need to close it ❌
 
-### ⚙️ Mechanics
-**Six REST constraints:** Client-Server · **Statelessness** · **Cacheability** (via headers) · **Layered System** (proxies/load balancers) · Code-on-Demand (optional) · **Uniform Interface**.
-- Uniform-interface details: resource identification (URIs, **nouns, plural** — `/users/123`, not `/getUsers`), manipulation via representations (**JSON**), self-descriptive messages (headers), **HATEOAS** (responses include links to related resources).
-- **Request line:** `<method> <URI> <HTTP version>`. **Headers** = key-value metadata (Host, Accept, Content-Type, Authorization, Cookie…). **Body** for POST/PUT/PATCH (set `Content-Type`, e.g. `application/json`).
-- **Response line:** `<HTTP version> <status code> <status message>`.
-
-**Methods — safe & idempotent:**
-| Method | Safe | Idempotent |
-|---|---|---|
-| GET | ✅ | ✅ |
-| POST | ❌ | ❌ |
-| PUT | ❌ | ✅ |
-| PATCH | ❌ | ❌ |
-| DELETE | ❌ | ✅ |
-
-**Status codes:** 1xx info · 2xx success · 3xx redirect · 4xx client · 5xx server.
-200 OK · 201 Created · 204 No Content · 301 Moved · 302 Found · 304 Not Modified · 400 Bad Request · 401 Unauthorized · 403 Forbidden · 404 Not Found · 405 Method Not Allowed · 415 Unsupported Media Type · 422 Unprocessable Entity · 429 Too Many Requests · 500 Internal Server Error · 502 Bad Gateway · 503 Service Unavailable · 504 Gateway Timeout.
-
-### 🎯 Exam layer (the "NOT TRUE" traps)
-| Statement | Answer |
-|---|---|
-| POST is idempotent | **NOT TRUE** |
-| DELETE is not idempotent | **NOT TRUE** (it is) |
-| PATCH always idempotent like PUT | **NOT TRUE** |
-| PUT is not idempotent | **NOT TRUE** (it is) |
-| GET may modify data | **NOT TRUE** (safe) |
-| HTTP is stateful | **NOT TRUE** (stateless) |
-| All methods use the same status code | **NOT TRUE** (POST→201, GET→200, PUT/PATCH→200/204, DELETE→204) |
+**Quick check:**
+1. You create a `ResultSet` but don't use try-with-resources. It closes automatically anyway. True or false?
+2. You have two resources in try-with-resources: A opened first, B opened second. Which closes first?
+3. Is `ResultSetMetaData` AutoCloseable?
 
 ---
 
-# 16. Logging (java.util.logging — "JUL")
+# 15. REST & HTTP
 
-### 🧠 Concept
-Logging records execution for diagnosis/auditing/monitoring **without a debugger**, and is **configurable, filterable, hierarchical** — unlike `System.out.println`.
+**REST is a style for building APIs that makes URLs meaningful and consistent.** Instead of random URLs like `/doThing` or `/getData`, REST says: resources are nouns, URLs identify them, HTTP methods say what to do with them.
 
-### ⚙️ Mechanics
-- **5 components:** **Logger** (entry point; hierarchical names; uses parent/root handlers if none) → **Handler** (where: **`ConsoleHandler`→`System.err`**, `FileHandler`→rotating file) → **Formatter** (how: `SimpleFormatter` default, `XMLFormatter`) → **Level** → **LogManager** (global config, reads `logging.properties`).
-- **Double filter:** message must pass the **logger's** level then the **handler's** level.
-- **Level ladder (high→low):** `OFF` → SEVERE → WARNING → INFO → CONFIG → FINE → FINER → FINEST → `ALL`. **Default = INFO** ⇒ INFO/WARNING/SEVERE print. A set level logs that level **and everything above (more severe)**.
-- **Lazy logging:** pass a `Supplier` lambda — `logger.log(Level.FINE, () -> expensive())` — only evaluated if the level is active. Configure per-class level in `logging.properties` via `-Djava.util.logging.config.file=...`.
+`/users/42` → the user with ID 42. GET it to read, PUT it to replace, DELETE it to remove.
 
-### 🎯 Exam layer
-| Statement | Answer |
-|---|---|
-| Default level INFO | **TRUE** |
-| At default, FINE prints | **FALSE** |
-| ConsoleHandler → `System.out` | **FALSE** (`System.err`) |
-| A logger can have multiple handlers | **TRUE** |
-| `ALL` logs all, `OFF` logs nothing | **TRUE** |
-| Message passes logger **and** handler level | **TRUE** |
+**The two properties every exam question about methods tests:**
+
+**Safe** = does NOT modify server data. GET is safe — it's a read-only operation.
+
+**Idempotent** = doing it multiple times = doing it once. The result is the same whether you do it 1 time or 100 times.
+
+| Method | Safe | Idempotent | What it does |
+|---|---|---|---|
+| GET | ✅ | ✅ | Read a resource |
+| POST | ❌ | ❌ | Create (repeat → multiple created) |
+| PUT | ❌ | ✅ | Replace fully (repeat → same result) |
+| PATCH | ❌ | ❌ | Partial update |
+| DELETE | ❌ | ✅ | Delete (repeat → still gone) |
+
+**Why is POST not idempotent?** Because each POST creates a new resource. POST `/orders` three times → three orders. Three separate things happened.
+
+**Why is PUT idempotent?** Because PUT `/users/42` with the same data three times → the user still has the same data. You replaced the same thing with the same thing.
+
+**Why is DELETE idempotent?** After the first DELETE, the resource is gone. The second and third DELETE find nothing to delete — but the end state is the same: it's gone. No harm done.
+
+**HTTP is stateless.** Every request must contain all the information the server needs. The server doesn't remember you between requests. No session stored server-side by design. This is a fundamental REST constraint.
+
+**Request line format:** `GET /images/logo.png HTTP/1.1`
+**Response line format:** `HTTP/1.1 200 OK`
+
+**Status codes — the ones to know cold:**
+
+2xx Success: `200 OK`, `201 Created`, `204 No Content`
+3xx Redirect: `301 Moved Permanently`, `302 Found (temp)`, `304 Not Modified (use cache)`
+4xx Client error: `400 Bad Request`, `401 Unauthorized (not logged in)`, `403 Forbidden (logged in but no permission)`, `404 Not Found`, `405 Method Not Allowed`, `415 Unsupported Media Type`, `422 Unprocessable Entity`, `429 Too Many Requests`
+5xx Server error: `500 Internal Server Error`, `502 Bad Gateway`, `503 Service Unavailable`, `504 Gateway Timeout`
+
+**401 vs 403:** 401 = you haven't authenticated (not logged in). 403 = you're authenticated but not allowed (logged in but don't have permission).
+
+**Status codes per method:** POST → 201, GET → 200, PUT/PATCH → 200 or 204, DELETE → 204.
+
+**Quick check:**
+1. POST is idempotent. True or false?
+2. DELETE is not idempotent because the second delete fails. True or false?
+3. You're logged in but not allowed to see this page. Is that 401 or 403?
 
 ---
 
-# 17. Date/Time API & ★ Internationalisation (i18n)
+# 16. Logging (JUL)
 
-### 🧠 Concept
-`java.time` types are immutable; each carries a **different amount of context** — pick wrong and you get bugs. i18n separates locale-specific text from code so the same program speaks many languages.
+**Why not just use `System.out.println`?** Because you can't turn it off. In production you might want only errors. In development you want everything. `System.out.println` is either on or off — you'd have to delete them all before releasing. Logging gives you levels you can dial up or down without changing code.
 
-### ⚙️ Mechanics
-- **Instant** = a point on the timeline, **always UTC**; epoch = 1970-01-01 UTC (seconds as `long` + nanos as `int`). **Duration** = time between two Instants. **Period** = time between dates.
-- **LocalDate / LocalTime / LocalDateTime** — local, **no zone/offset** (prefer these unless you truly need zones).
-- **OffsetDateTime** — + offset, no region. **ZonedDateTime** — + offset + region (IANA tz db). Convert: `instant.atZone(ZoneId.of("Europe/Amsterdam"))`.
-- **Offset** = difference from UTC: `2025-07-06T20:00+02:00` → UTC 18:00.
-- **DateTimeFormatter** for formatting (locale-aware).
-- **★ ResourceBundle + MessageFormat:** put strings in `.properties` files, one base + one per locale (`greetings.properties`, `greetings_nl_NL.properties`). `ResourceBundle.getBundle("greetings", Locale.getDefault())`; `MessageFormat.format(pattern, args)` fills `{0}`,`{1}`. **Fallback chain:** `_nl_NL` → `_nl` → base. Guard with `containsKey` to avoid `MissingResourceException`. Test localized exceptions via `.extracting(e -> e.getLocalizedMessage())`.
+Java's built-in logging is in `java.util.logging` — called **JUL**. It has 5 components:
 
-### 🎯 Exam layer
-- `LocalDateTime` has no offset/zone → **TRUE** (watch wording).
-- `ZonedDateTime` full zone → **TRUE**; `OffsetDateTime` offset, no region → **TRUE**.
-- `Instant` is always UTC → can represent "any local zone" is **FALSE**; convertible to zoned → **TRUE**.
-- i18n strings live in **`.properties`** bundles; `{0}` filled by `MessageFormat`; locale fallback to base.
+1. **Logger** — what you call in your code (`logger.info("Server started")`). Has a name (usually the class name). Names are hierarchical — `com.fontys` is the parent of `com.fontys.prc2`. If a logger has no handlers, it passes to its parent.
+2. **Handler** — where logs go. **`ConsoleHandler` goes to `System.err`** (not System.out — exam trap). `FileHandler` writes to a rotating file.
+3. **Formatter** — how logs look. `SimpleFormatter` = human readable. `XMLFormatter` = XML.
+4. **Level** — severity. Controls what gets through.
+5. **LogManager** — global config, reads `logging.properties`.
+
+**The level ladder from highest to lowest:**
+```
+OFF       ← highest (logs nothing)
+SEVERE    ← default printed
+WARNING   ← default printed
+INFO      ← default level, default printed
+CONFIG
+FINE
+FINER
+FINEST
+ALL       ← lowest (logs everything)
+```
+
+**Default level is INFO.** That means only INFO, WARNING, and SEVERE get printed by default. FINE, FINER, FINEST, CONFIG are all invisible unless you change the level.
+
+**The rule:** setting a level prints that level AND everything above it (more severe). Set to FINE → you get FINE, CONFIG, INFO, WARNING, SEVERE. Set to ALL → you get everything.
+
+**Double filter:** a message has to pass two checks. First the logger's level, then the handler's level. A logger can have multiple handlers, each with its own level. A message filtered by the logger never reaches any handler.
+
+**Quick check:**
+1. ConsoleHandler writes to `System.out`. True or false?
+2. Logger level is INFO. Does a FINE message get logged?
+3. Logger level is FINE, but the Handler level is INFO. A FINE message is sent. Does it get logged?
 
 ---
 
-# 18. ★ State Machines (gap-fill)
+# 17. Date/Time API & i18n
 
-### 🧠 Concept
-A **state machine** models behaviour that depends on **history/events over time** (stateful), unlike a pure function. Example: a switch — current only flows in the "on" state. Two tools: the **state diagram** and the **State pattern**.
+**`java.time` replaced the old `Date` and `Calendar` classes** because those were terrible. The new types are immutable and each one carries a specific amount of information — pick the wrong one and you get timezone bugs.
 
-### ⚙️ Mechanics
-- **State (GoF) pattern:** a **context** holds a reference to an abstract **State**; multiple **concrete states** implement the same interface. On an **event**, the context swaps its current state object for another. Each state behaves like a pure function (same input → same output); switching states changes the path (railway-switch analogy).
-- **Vocabulary:** state, transition, event/trigger, action.
-- **Enum-based states (this course):** states as enum constants → no new states ever, immutable, shareable across contexts, easily tested with a **mocked** context. Downside: a functional state can't hold its own data (e.g. a counter) — store that in the context, or make counts their own states (traffic light: green/yellow/red).
-- **Constructor pitfall:** don't call `state.enter(this)` inside the constructor (object not fully built). Use an `init()` method called after construction: `new StateMachine().init()`.
-- State vs Strategy pattern (same structure, different intent): State changes behaviour as internal state changes; Strategy swaps an externally chosen algorithm.
+**The four types:**
 
-### 🎯 Exam layer
-- State pattern = context + abstract state + concrete states; current state object replaced on an event.
-- Enum states are immutable/shareable, can't hold mutable data themselves.
-- Don't call a state method taking `this` from the constructor — use `init()`.
+- **`LocalDateTime`** — date + time, **no timezone, no offset**. "2025-07-06T20:00" — we don't know what timezone this is.
+- **`OffsetDateTime`** — date + time + offset from UTC. "2025-07-06T20:00+02:00" — we know it's 2 hours ahead of UTC.
+- **`ZonedDateTime`** — date + time + offset + named region. "2025-07-06T20:00+02:00[Europe/Amsterdam]" — we know the timezone rule set too (handles daylight saving automatically).
+- **`Instant`** — a single point on the timeline, **always UTC**. No timezone, no offset. `Instant.now()` tells you when right now is as a UTC timestamp.
+
+**Offset explained:** `2025-07-06T20:00+02:00` means local time is 20:00 and it's 2 hours ahead of UTC, so UTC is 18:00.
+
+`Instant` cannot represent a "local" time — it's purely UTC. But you CAN convert it: `instant.atZone(ZoneId.of("Europe/Amsterdam"))` gives you a `ZonedDateTime`.
+
+**i18n (internationalisation):** instead of hardcoding text like "Welcome" in your code, you put it in a `.properties` file. One file per language:
+
+- `messages.properties` — base/English
+- `messages_nl_NL.properties` — Dutch (Netherlands)
+
+Java looks for the most specific file first, then falls back. Can't find Dutch Netherlands? Try Dutch. Can't find Dutch? Use base. This is the **fallback chain**.
+
+`MessageFormat.format("Hello {0}!", name)` fills in the `{0}` placeholder.
+
+**Quick check:**
+1. `LocalDateTime` — does it store timezone info?
+2. `Instant` can represent time in any local timezone. True or false?
+3. `2025-07-06T20:00+02:00` — what is the UTC time?
+
+---
+
+# 18. State Machines
+
+**A state machine models something that behaves differently depending on its history.** A traffic light is always in one state — Red, Yellow, or Green — and transitions between them based on events (timer tick). The same event (timer tick) does different things depending on the current state.
+
+**The State pattern (GoF)** is how you implement this in code:
+- A **Context** holds a reference to the current state object
+- Each **concrete state** implements the same interface
+- When an event happens, the context calls a method on the current state, which may swap the context's state to a new one
+
+```java
+// Instead of a giant switch statement:
+context.setState(new GreenState());
+context.handleTick();   // Green decides what to do, may change to Yellow
+```
+
+**Enum-based states** (what this course uses): states are enum constants. Benefits: the set of states is fixed, they're immutable, shareable across contexts, easy to mock in tests. Downside: they can't hold mutable data — store counters in the context instead.
+
+**Constructor pitfall:** don't call `state.enter(this)` inside the constructor. The object isn't fully built yet, so passing `this` can lead to bugs. Use an `init()` method that you call after the object is created.
+
+**State vs Strategy pattern:** same structure (context + interchangeable objects), different intent. State changes behaviour because the object's internal state changed. Strategy swaps an algorithm that was chosen externally by the caller.
+
+**Quick check:**
+1. In the State pattern, who holds the reference to the current state?
+2. Why is calling `state.enter(this)` in the constructor a problem?
+3. What's the difference between State and Strategy pattern?
 
 ---
 
 # 19. Regular Expressions
 
-### 🧠 Concept
-A regex is a pattern matching text — and it **compiles to a state machine** (the railroad diagram). That's also why a bad regex can loop forever (**ReDoS** — a denial-of-service risk; don't accept untrusted regexes).
+**A regex is a pattern that matches text.** Think of it as a very precise search.
 
-### ⚙️ Mechanics
-- **Anchors:** `^` start, `$` end. **Any char:** `.`. **Escape:** `\` (in Java strings, double it: `\\.` = literal dot).
-- **Quantifiers:** `?` 0–1, `+` ≥1, `*` ≥0, `{n}` exactly n, `{n,m}` range, `{n,}` at least n.
-- **Char classes:** `[aeiou]`, `[a-z]`, `[A-Z]`, `[a-pA-P]`. **Predefined:** `\d` digit, `\D` non-digit, `\w` word `[a-zA-Z0-9_]`, `\W` non-word, `\s` whitespace.
-- **Groups:** `( … )` capture; **group 0** = whole match, group 1 = first paren. **Named groups:** `(?<name>…)` → `m.group("name")`.
-- **Pattern/Matcher:** `Pattern.compile(regex)` → `p.matcher(input)`. Match methods: **`find()`** (anywhere), **`matches()`** (whole string), **`lookingAt()`** (start). Example pattern: Dutch postcode `\d{4}\s[A-Z]{2}`.
+**The symbols you need:**
 
-### 🎯 Exam layer
-- `^`/`$` anchor; `\d{8}` exactly 8 digits; `\.` literal dot; `[a-z]`/`[A-Z]` one lower/upper; `_` underscore.
-- `find()` (substring) vs `matches()` (whole) vs `lookingAt()` (start).
-- Group 0 = entire match; named group `(?<name>…)`.
-- Regex ≈ state machine; untrusted regex → ReDoS risk.
+| Symbol | Means |
+|---|---|
+| `^` | Start of string |
+| `$` | End of string |
+| `.` | Any single character |
+| `\.` | A literal dot (escaped) |
+| `[a-z]` | One lowercase letter |
+| `[A-Z]` | One uppercase letter |
+| `\d` | One digit (0–9) |
+| `\w` | One word character (letter, digit, underscore) |
+| `\s` | One whitespace character |
+| `?` | 0 or 1 times |
+| `+` | 1 or more times |
+| `*` | 0 or more times |
+| `{n}` | Exactly n times |
+| `{n,m}` | Between n and m times |
+
+**Anchoring matters:** `\d{4}` matches 4 digits anywhere in the string. `^\d{4}$` matches a string that is ONLY 4 digits.
+
+**Pattern and Matcher in Java:**
+```java
+Pattern p = Pattern.compile("\\d{4}");  // double backslash in Java strings
+Matcher m = p.matcher("hello 1234 world");
+m.find();    // finds the pattern anywhere in the string → true
+m.matches(); // checks if the WHOLE string matches the pattern → false
+```
+
+`find()` vs `matches()` vs `lookingAt()`:
+- `find()` — searches anywhere in the string
+- `matches()` — the whole string must match the pattern
+- `lookingAt()` — the beginning of the string must match
+
+Groups: `(pattern)` captures a group. Group 0 = entire match. Group 1 = first set of parentheses. Named groups: `(?<name>pattern)` then `m.group("name")`.
+
+**Quick check:**
+1. `\d{8}` — what does this match?
+2. `find()` vs `matches()` — what's the difference?
+3. In a Java string, how do you write a regex for a literal dot?
 
 ---
 
-# 20. ★ Security (gap-fill)
+# 20. Security
 
-### 🧠 Concept
-Security prevents data leakage, DoS, and remote code execution. This week revisits earlier topics through a security lens.
+**Security is about stopping people from doing things they shouldn't.** This week connects several earlier topics through a security lens.
 
-### ⚙️ Mechanics
-**Class loaders** (load `.class` files into the JVM), three with a **delegation** model:
-- **Bootstrap** (core/JDK base) → **Platform** (rest of platform) → **System/Application** (class path + module path). Loading delegates upward first; if nothing has it → **ClassNotFoundException**.
-- **`URLClassLoader`** loads classes from a URL — a real risk (untrusted code can do anything). A legitimate custom-loader use: **decrypt encrypted `.class` files** before handing them to the JVM.
+**Class loaders** load `.class` files into the JVM. There are three, and they work by delegation — ask the parent first, only load it yourself if the parent can't:
+- **Bootstrap** — loads core Java (like `java.lang`)
+- **Platform** — loads the rest of the platform
+- **System/Application** — loads your code from the classpath
 
-**Java cryptography (`javax.crypto`):**
-- **Symmetric** (AES, ChaCha20): one shared key, **fast**, good for bulk data.
-- **Asymmetric** (RSA, EC): key **pair**, **slow**, used to exchange a symmetric key.
-- **AES-GCM** = authenticated encryption (ciphertext + tag detects tampering). Needs a key (16/24/32 bytes) and a unique **IV/nonce** (not secret).
-- **Hashing ≠ encryption:** hashing is **one-way** (not reversible).
+If a class can't be found anywhere in the chain → `ClassNotFoundException`.
 
-**Bytecode verifier:** before loading, the JVM verifies the class file (variables initialised before use, type-correct calls, access rules respected, stack bounds) → tampering throws **VerifyError**. (Java compiles to portable bytecode; `javap -c` shows it.)
+**Encryption basics:**
+- **Symmetric** (AES) — one key, used for both encrypting and decrypting. Fast. Good for bulk data.
+- **Asymmetric** (RSA) — two keys: public key encrypts, private key decrypts (or vice versa). Slow. Used to exchange a symmetric key securely.
+- **Hashing** — one-way, NOT encryption. You can't reverse a hash. Used for passwords.
 
-**SQL injection** (the live example): concatenating user input into SQL lets `' or '1'='1` log in, and `UNION SELECT …` + `information_schema` enumerate tables/columns; `-- --` comments out the rest. **Fixes:** PreparedStatement (parameterized) **and** a **least-privilege DB user** (`CREATE ROLE app LOGIN; GRANT SELECT ON users TO app;`) — never the `postgres` superuser.
+Why is hashing not enough for passwords? Rainbow tables — precomputed hashes for common passwords. Fix: add a **salt** (random value mixed in before hashing, unique per password). Even then, fast hashes (MD5, SHA-256) can be brute-forced. Use **slow hashes**: bcrypt, argon2, scrypt, PBKDF2.
 
-**Password management:** best is **not storing passwords** (OAuth 2.0). If you must: **hash** with a cryptographic hash (one-way, deterministic, diffusion, collision-resistant). Plain hashes are precomputable (rainbow tables) → add a **salt** (random, non-secret, per-password). Fast hashes are brute-forceable → use **slow** hashes: **bcrypt, argon2(id), scrypt, PBKDF2**.
+**SQL injection:** user types `' OR '1'='1` into a login form. Concatenated into SQL, this bypasses authentication. Fix: use PreparedStatement (parameterized queries) so user input is always treated as data, never as SQL. Also use a least-privilege database user — don't run your app as the database superuser.
 
-**Transport security:** HTTP is unencrypted (sniffable, MITM-able). **HTTPS** adds a CA-signed **certificate** (proves identity) + **encryption** (session key). Let's Encrypt gives free certs.
+**HTTPS** = HTTP + encryption. Adds a certificate (proves the server is who it says it is) + an encrypted connection. Without it, anyone on the network can read your traffic.
 
-**Error handling:** verbose errors leak system info (the SQL error revealed the query). Distinct "username not found" vs "wrong password" enables **username enumeration** → return a **generic** "username or password incorrect".
+**Error messages:** "username not found" vs "wrong password" tells an attacker which usernames are valid. Always return a generic message: "username or password incorrect."
 
-### 🎯 Exam layer
-- Three class loaders (Bootstrap/Platform/System), delegate upward; missing class → ClassNotFoundException.
-- Symmetric = one key/fast; asymmetric = key pair/slow. Hashing is one-way (≠ encryption).
-- SQL injection fixed by PreparedStatement **and** least-privilege DB user (not the superuser).
-- Salt defeats rainbow tables; use slow hashes (bcrypt/argon2/scrypt/PBKDF2).
-- HTTPS = certificate (identity) + encryption. Generic error messages prevent enumeration.
+**Quick check:**
+1. Symmetric vs asymmetric — which uses one key and which uses a key pair?
+2. Hashing is reversible. True or false?
+3. Why is a salt added to a password before hashing?
 
 ---
 
 # 21. Number Systems & Storage
 
-### 🧠 Concept
-Bits mean nothing until you choose an interpretation (the same 32 bits can be an int, a float, or ASCII text). Two exam staples: **base conversion** and **how numbers are stored** — two's complement for integers, **IEEE-754** for floats.
+**The same bits mean different things depending on how you interpret them.** 32 bits could be an integer, a float, or four ASCII characters. The interpretation is what gives them meaning.
 
-### ⚙️ Mechanics
-**Bases:** place values are powers of the base. Decimal→base b: divide by b repeatedly, read remainders **bottom-to-top**. (45→octal = 55₈; 77→octal = 115₈.) Binary place values (byte): 128 64 32 16 8 4 2 1.
+**Converting decimal to another base:** divide by the base repeatedly and read the remainders from bottom to top.
 
-**Negative integers:**
-- Naive **sign bit** has two zeros (+0/−0) and addition breaks → rejected.
-- **Two's complement:** one zero, normal addition works, range **−2ⁿ⁻¹ … 2ⁿ⁻¹−1**; negatives still have MSB = 1. Convert: **flip all bits (one's complement) + 1**. (−6 in 8-bit: `00000110`→`11111001`→`11111010`.) This is what Java uses.
+```
+45 ÷ 8 = 5, remainder 5  ← read this second
+ 5 ÷ 8 = 0, remainder 5  ← read this first
+→ 45 in octal = 55₈
 
-**★ Floating point (IEEE-754) — gap-fill (notes only had two's complement):**
-- Based on binary scientific notation. **32-bit float:** 1 sign + 8 exponent + 23 mantissa. Formula: **(−1)^sign × (1 + mantissa) × 2^(exponent − 127)**.
-- **Hidden/implicit bit:** the normalised leading `1.` isn't stored; the 23 bits hold only the fraction, and you add the `1` back.
-- Bias = **127** for float. Example: `100.25` → `1.10010001 × 2⁶` → exponent `6+127=133`.
-- **Special values** (reserved exponents): exponent all-0 + mantissa 0 → **±0**; exponent all-1 + mantissa 0 → **±Infinity**; exponent all-1 + mantissa ≠0 → **NaN**.
-- **Why 0.1 isn't exact:** its binary fraction repeats forever (like 1/3 in decimal) → rounding error.
-- **Double:** 64-bit = 1 sign + 11 exponent + 52 mantissa, bias **1023**.
-- **BigDecimal fix:** `new BigDecimal("0.1")` (String, exact) — never `new BigDecimal(0.1)` (inherits the double error).
+77 ÷ 8 = 9, remainder 5  ← read third
+ 9 ÷ 8 = 1, remainder 1  ← read second
+ 1 ÷ 8 = 0, remainder 1  ← read first
+→ 77 in octal = 115₈
+```
 
-### 🎯 Exam layer
-- Negatives stored in **two's complement** (flip + 1); range −2ⁿ⁻¹…2ⁿ⁻¹−1; conversions read remainders bottom-to-top.
-- float = 1/8/23 (bias 127); double = 1/11/52 (bias 1023); implicit leading 1.
-- exp all-1 + mantissa 0 = Infinity; exp all-1 + mantissa ≠0 = NaN; exp all-0 = (±)0.
-- `0.1` not exactly representable; `BigDecimal` from a **String** for exactness.
+Binary place values for one byte: 128 · 64 · 32 · 16 · 8 · 4 · 2 · 1
+
+19 in binary: 16+2+1 = `00010011`
+
+**Two's complement — how Java stores negative integers:**
+
+Why not just use a sign bit? Because +0 and -0 would be different bit patterns and addition gets complicated. Two's complement solves this.
+
+To get -6 in 8-bit:
+```
+Step 1: Write 6:          0000 0110
+Step 2: Flip all bits:    1111 1001
+Step 3: Add 1:            1111 1010  ← this is -6
+```
+
+Range for n-bit two's complement: −2^(n-1) to 2^(n-1)−1. For a byte (8-bit): −128 to 127.
+
+**IEEE-754 — how Java stores floats and doubles:**
+
+Floats use binary scientific notation. A 32-bit float has:
+- 1 bit: sign (0=positive, 1=negative)
+- 8 bits: exponent (stored with bias 127 — add 127 to the real exponent)
+- 23 bits: mantissa (the fraction part — the leading 1 is implicit and not stored)
+
+Special values (when exponent bits are all 1):
+- All 1s exponent + mantissa = 0 → **Infinity**
+- All 1s exponent + mantissa ≠ 0 → **NaN**
+
+Why can't you represent 0.1 exactly? Because in binary, 0.1 repeats forever (like 1/3 in decimal repeats as 0.333…). It gets rounded, which is why `0.1 + 0.2 != 0.3` in floating point. Use `BigDecimal("0.1")` for exactness.
+
+Double is the same idea but 64 bits: 1 sign + 11 exponent + 52 mantissa, bias 1023.
+
+**Quick check:**
+1. Convert 19 to binary.
+2. To get -6 in two's complement: flip bits and then \_\_\_\_.
+3. Why is `0.1 + 0.2 != 0.3` in Java?
 
 ---
 
-## Weekend plan (Fri night → Sun)
+## How to use this book
 
-- **Fri night:** read for 🧠 Concept + ⚙️ Mechanics — every "why" should click. Pay attention to the ★ gap-fill sections (state machines, security, annotations, PECS, IEEE-754, i18n) — they're newly covered and very examinable.
-- **Sat:** cover the answer columns; quiz down every 🎯 table; note misses.
-- **Sun:** redo misses, one clean pass, re-read the three flagged contradictions.
-- **Exam:** the traps live in **NOT / always / never / only / cannot** — read each statement twice.
+**Tonight:** read topics 1–16 all the way through. Don't quiz yourself yet — just get the explanations into your head. Answer the quick-check questions mentally; if you blank on one, re-read that section.
+
+**Saturday:** go through the notebook section (Part 2 below) with the answers covered. Treat it as a mock exam. Every statement — say your answer before you look. Mark every miss.
+
+**Sunday:** redo only your misses. One final pass. Stop by the afternoon.
 
 ---
-
 # 📒 NOTEBOOK — Exam Questions Reconstructed
 
 > These are your friend's notes written **after** sitting the exam — the questions reproduced from memory in roughly the order they appeared on the paper, with the correct answer and justification next to each one. They jump between topics because that's how the 30-question MC paper is built.
